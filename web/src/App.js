@@ -4,6 +4,7 @@ import { LoginPage } from "./pages/LoginPage";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { ProtectedPage } from "./pages/ProtectedPage";
 import { DashboardV2 } from "./pages/DashboardV2";
+import { DragAndDrop } from "./pages/DragAndDrop";
 import TermsAndConditions from "./components/TermsAndConditions";
 import PrivacyPolicy from "./components/PrivacyPolicy";
 import ContactUs from "./components/ContactUs";
@@ -60,6 +61,12 @@ function App() {
           element={
             <ProtectedPage>
                 <DashboardV2 />
+              </ProtectedPage>
+          } />
+          <Route path="/drag-and-drop" 
+          element={
+            <ProtectedPage>
+                <DragAndDrop />
               </ProtectedPage>
           } />
         </Routes>
