@@ -892,11 +892,11 @@ async def create_order(plan_id: str, token_info: dict = Depends(verify_token)):
 
         amount = 0
         if plan_id == 'plan_50':
-            amount = 420  
-        elif plan_id == 'plan_250':
-            amount = 840  
-        elif plan_id == 'plan_500':
-            amount = 1680
+            amount = 399  
+        elif plan_id == 'plan_150':
+            amount = 899  
+        elif plan_id == 'plan_300':
+            amount = 1799
         else:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

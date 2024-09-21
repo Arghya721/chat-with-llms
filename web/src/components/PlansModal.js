@@ -9,7 +9,7 @@ export const PlansModal = ({ isOpen, onClose }) => {
     {
       name: 'Basic',
       description: '',
-      price: 420,
+      price: 399,
       planId: "plan_50",
       features: [
         '50 Generations on all models',
@@ -18,19 +18,19 @@ export const PlansModal = ({ isOpen, onClose }) => {
     {
       name: 'Standard',
       description: '',
-      price: 840,
-      planId: "plan_250",
+      price: 899,
+      planId: "plan_150",
       features: [
-        '250 Generations on all models',
+        '150 Generations on all models',
       ],
     },
     {
       name: 'Premium',
       description: '',
-      price: 1680,
-      planId: "plan_500",
+      price: 1799,
+      planId: "plan_300",
       features: [
-        '500 Generations on all models',
+        '300 Generations on all models',
       ],
     },
   ];
