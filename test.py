@@ -9,13 +9,11 @@ payload = {
     "user_input": "Write a short paragraph",
     "chat_history": [],
     "chat_model": "gpt-3.5-turbo",
-    "temperature": 0.8
+    "temperature": 0.8,
 }
 
 # Headers
-headers = {
-    'Content-Type': 'application/json'
-}
+headers = {"Content-Type": "application/json"}
 
 # Send the POST request
 response = requests.post(url, headers=headers, data=json.dumps(payload), stream=True)
@@ -26,7 +24,7 @@ if response.status_code == 200:
     for chunk in response.iter_content(chunk_size=None, decode_unicode=True):
         if chunk:
             # Split the chunk into separate events
-            events = chunk.split('\n\n')
+            events = chunk.split("\n\n")
             for event in events:
                 # Parse the event JSON data
                 print(event)

@@ -27,6 +27,9 @@ razorpay = "*"
 anthropic = "*"
 transformers = "*"
 google-cloud-aiplatform = {extras = ["tokenization"], version = "*"}
+pip = "*"
+install = "*"
+pydantic-settings = "*"
 
 [dev-packages]
 
