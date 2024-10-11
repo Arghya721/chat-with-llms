@@ -1,20 +1,37 @@
 """This module contains the routes for chat related operations"""
-
-from fastapi import APIRouter, Depends
-from controllers.chat_controller import chat_event_streaming, generate_chat_title
+import logging
+from fastapi import APIRouter, Depends, HTTPException
+from controllers.chat_controller import ChatController
 from controllers.auth_controller import verify_token
 from models.chat import ChatRequest, ChatUserHistory, ChatByIdHistory
 from services.database import get_user_chat_history, get_chat_by_id, get_generations
+from services.chat_service import ChatService
+from services.database_service import DatabaseService
+from pydantic import ValidationError
 
 router = APIRouter()
-
 
 @router.post("/chat_event_streaming")
 async def chat_event_streaming_route(
     request: ChatRequest, token_info: dict = Depends(verify_token)
 ):
     """Route for chat event streaming."""
-    return await chat_event_streaming(request, token_info)
+    try:
+        chat_controller = ChatController(ChatService, DatabaseService)
+
+        return await chat_controller.chat_event_streaming(request, token_info)
+    except ValidationError as ve:
+        # Handle validation errors specifically for better user feedback
+        logging.error("Validation error: %s", ve)
+        raise HTTPException(status_code=400, detail="Invalid request data") from ve
+    except HTTPException as he:
+        
+        logging.error("Error processing chat request: %s", he)
+        raise HTTPException(status_code=he.status_code, detail=he.detail) from he
+    except Exception as e:
+        # Log and handle generic exceptions gracefully
+        logging.error("Error processing chat request: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error") from e
 
 
 @router.post("/chat_title")
@@ -22,7 +39,7 @@ async def chat_title_route(
     request: ChatRequest, token_info: dict = Depends(verify_token)
 ):
     """Route for generating chat title."""
-    return await generate_chat_title(request, token_info)
+    return await ChatController.generate_chat_title(request, token_info)
 
 
 @router.get("/chat_history", response_model=list[ChatUserHistory])

@@ -19,11 +19,19 @@ class DatabaseService:
 
     def __init__(self):
         """Initialize the DatabaseService and set up the database connection."""
-        if settings.ENVIRONMENT == "dev":
-            cred = credentials.Certificate("serviceAccount.json")
-            firebase_admin.initialize_app(cred)
+        if not firebase_admin._apps:  # Check if Firebase is already initialized
+            if settings.ENVIRONMENT == "dev":
+                cred = credentials.Certificate("serviceAccount.json")
+                print("Initializing Firebase with service account")
+                firebase_admin.initialize_app(cred)
+                print("Initialized Firebase with service account")
+            else:
+                print("Initializing Firebase with default credentials")
+                firebase_admin.initialize_app()
+                print("Initialized Firebase with default credentials")
         else:
-            firebase_admin.initialize_app()
+            print("Firebase app is already initialized")
+
 
         self.db = firestore.client()
 

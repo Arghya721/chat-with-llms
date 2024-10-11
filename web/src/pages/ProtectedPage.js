@@ -11,7 +11,7 @@ export const ProtectedPage = ({ children }) => {
   useEffect(() => {
     const verifyToken = async () => {
       try {
-        const response = await fetch(`${API_HOST}/verify`, {
+        const response = await fetch(`${API_HOST}/auth/verify`, {
           headers: {
             'Authorization': `Bearer ${accessToken}`,
           },

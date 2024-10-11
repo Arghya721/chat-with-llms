@@ -4,7 +4,7 @@ Chat controller module for handling chat-related operations.
 This module contains functions for processing chat requests, generating responses,
 and managing chat-related data.
 """
-
+import logging
 from fastapi import HTTPException, status, Depends
 from models.chat import ChatRequest, ChatEventStreaming, ChatResponse
 from services.chat_service import ChatService
@@ -32,8 +32,8 @@ class ChatController:
             chat_service (ChatService): Service for chat-related operations.
             database_service (DatabaseService): Service for database operations.
         """
-        self.chat_service = chat_service
-        self.database_service = database_service
+        self.chat_service = chat_service()
+        self.database_service = database_service()
 
     async def chat_event_streaming(self, request: ChatRequest, token_info: dict):
         """
@@ -132,6 +132,7 @@ class ChatController:
 
             return event_streaming()
         except Exception as e:
+            logging.error(f"Error processing chat request: {str(e)}")
             raise HTTPException(
                 status_code=500, detail=f"Internal server error: {str(e)}"
             )

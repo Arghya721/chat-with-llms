@@ -1,6 +1,8 @@
-from google.cloud import firestore
+from typing import List
+from google.cloud import firestore as google_firestore
 from models.user import User
 from models.chat import ChatRequest, ChatUserHistory, ChatByIdHistory
+from google.cloud.firestore_v1.base_query import FieldFilter
 from config import settings
 import firebase_admin
 from firebase_admin import credentials, firestore
@@ -19,7 +21,7 @@ async def add_user_to_db(user: User):
     user_ref = db.collection("users").document(user.google_user_id)
     user_data = user.dict()
     if not user_ref.get().exists:
-        user_data["created_at"] = firestore.SERVER_TIMESTAMP
+        user_data["created_at"] = google_firestore.SERVER_TIMESTAMP
         user_ref.set(user_data)
 
 
@@ -37,15 +39,15 @@ async def add_message_to_db(
         if chat_ref.get().to_dict()["google_user_id"] != google_user_id:
             raise ValueError("Forbidden")
         chat_ref.update(
-            {"updated_at": firestore.SERVER_TIMESTAMP, "model": request.chat_model}
+            {"updated_at": google_firestore.SERVER_TIMESTAMP, "model": request.chat_model}
         )
     else:
         chat_ref.set(
             {
                 "chat_id": chat_id,
                 "google_user_id": google_user_id,
-                "created_at": firestore.SERVER_TIMESTAMP,
-                "updated_at": firestore.SERVER_TIMESTAMP,
+                "created_at": google_firestore.SERVER_TIMESTAMP,
+                "updated_at": google_firestore.SERVER_TIMESTAMP,
                 "model": request.chat_model,
             }
         )
@@ -55,8 +57,8 @@ async def add_message_to_db(
             "ai_message": ai_message,
             "user_message": user_message,
             "chat_id": chat_id,
-            "created_at": firestore.SERVER_TIMESTAMP,
-            "updated_at": firestore.SERVER_TIMESTAMP,
+            "created_at": google_firestore.SERVER_TIMESTAMP,
+            "updated_at": google_firestore.SERVER_TIMESTAMP,
             "regenerate_message": request.regenerate_message,
             "model": request.chat_model,
             "stats": stats,
@@ -76,8 +78,8 @@ async def get_generations(google_user_id: str):
             {
                 "google_user_id": google_user_id,
                 "remaining_generations": 20,
-                "created_at": firestore.SERVER_TIMESTAMP,
-                "updated_at": firestore.SERVER_TIMESTAMP,
+                "created_at": google_firestore.SERVER_TIMESTAMP,
+                "updated_at": google_firestore.SERVER_TIMESTAMP,
             }
         )
         return 20
@@ -88,7 +90,7 @@ async def update_generations_left(google_user_id: str, generations_left: int):
     user_generations_ref.update(
         {
             "remaining_generations": generations_left - 1,
-            "updated_at": firestore.SERVER_TIMESTAMP,
+            "updated_at": google_firestore.SERVER_TIMESTAMP,
         }
     )
 
@@ -98,31 +100,59 @@ async def update_chat_title(chat_id: str, new_chat_title: str):
     chat_doc_ref.update(
         {
             "chat_title": new_chat_title,
-            "updated_at": firestore.SERVER_TIMESTAMP,
+            "updated_at": google_firestore.SERVER_TIMESTAMP,
         }
     )
 
 
-async def get_user_chat_history(google_user_id: str, page: int, limit: int):
+async def get_user_chat_history(google_user_id: str, page: int, limit: int) -> List[ChatUserHistory]:
+    """
+    Fetches paginated chat history for a given Google user ID.
+
+    Args:
+        google_user_id (str): The Google user ID.
+        page (int): The page number to fetch.
+        limit (int): Number of records per page.
+
+    Returns:
+        List[ChatUserHistory]: A list of the user's chat history.
+    """
     start_index = (page - 1) * limit
+
+    # Firestore query to fetch the user's chat history
     chat_ref = (
         db.collection("chats")
-        .where("google_user_id", "==", google_user_id)
-        .order_by("updated_at", direction=firestore.Query.DESCENDING)
+        .where(filter=FieldFilter("google_user_id", "==", google_user_id))  # Use FieldFilter
+        .order_by("updated_at", direction=google_firestore.Query.DESCENDING)
         .offset(start_index)
         .limit(limit)
         .stream()
     )
+
     return [ChatUserHistory(**chat.to_dict()) for chat in chat_ref]
 
 
-async def get_chat_by_id(chat_id: str, google_user_id: str):
+
+async def get_chat_by_id(chat_id: str, google_user_id: str) -> List[ChatByIdHistory]:
+    """
+    Fetches chat history by chat ID.
+
+    Args:
+        chat_id (str): The chat ID.
+        google_user_id (str): The Google user ID.
+
+    Returns:
+        List[ChatByIdHistory]: A list of chat history by chat ID.
+    """
+    # Fetch chat by chat ID
     chat_ref = db.collection("chats").document(chat_id).get()
     if not chat_ref.exists or chat_ref.to_dict()["google_user_id"] != google_user_id:
         raise ValueError("Chat not found or access denied")
 
     chat_history_ref = (
-        db.collection("chat_history").where("chat_id", "==", chat_id).stream()
+        db.collection("chat_history")
+        .where(filter=FieldFilter("chat_id", "==", chat_id))
+        .stream()
     )
     return [ChatByIdHistory(**chat.to_dict()) for chat in chat_history_ref]
 
@@ -133,8 +163,8 @@ async def add_order_to_db(order_id: str, plan_id: str, google_user_id: str):
             "order_id": order_id,
             "plan_id": plan_id,
             "customer_id": google_user_id,
-            "created_at": firestore.SERVER_TIMESTAMP,
-            "updated_at": firestore.SERVER_TIMESTAMP,
+            "created_at": google_firestore.SERVER_TIMESTAMP,
+            "updated_at": google_firestore.SERVER_TIMESTAMP,
         }
     )
 
@@ -145,8 +175,8 @@ async def add_payment_to_db(order_id: str, payment_id: str, google_user_id: str)
             "order_id": order_id,
             "payment_id": payment_id,
             "customer_id": google_user_id,
-            "created_at": firestore.SERVER_TIMESTAMP,
-            "updated_at": firestore.SERVER_TIMESTAMP,
+            "created_at": google_firestore.SERVER_TIMESTAMP,
+            "updated_at": google_firestore.SERVER_TIMESTAMP,
         }
     )
 
@@ -156,7 +186,7 @@ async def update_user_generations(google_user_id: str, new_generations: int):
     user_generations_ref.update(
         {
             "remaining_generations": new_generations,
-            "updated_at": firestore.SERVER_TIMESTAMP,
+            "updated_at": google_firestore.SERVER_TIMESTAMP,
         }
     )
 
@@ -165,7 +195,7 @@ async def fetch_user_payments(google_user_id: str):
     payments_ref = (
         db.collection("payments")
         .where("customer_id", "==", google_user_id)
-        .order_by("updated_at", direction=firestore.Query.DESCENDING)
+        .order_by("updated_at", direction=google_firestore.Query.DESCENDING)
         .stream()
     )
     return [payment.to_dict() for payment in payments_ref]

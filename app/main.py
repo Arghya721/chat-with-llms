@@ -5,6 +5,7 @@ This module initializes the FastAPI application, sets up CORS middleware,
 and includes the necessary routers for authentication, chat, and order functionality.
 """
 
+import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routes import auth, chat, order
@@ -39,6 +40,6 @@ def create_app() -> FastAPI:
 app = create_app()
 
 if __name__ == "__main__":
-    import uvicorn
+    app = create_app()  # Create the app here again for direct reference
 
     uvicorn.run(app, host="0.0.0.0", port=settings.PORT, log_level="info")

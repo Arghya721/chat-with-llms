@@ -6,7 +6,7 @@ export const verifyGoogleAuth = async () => {
             console.error('No access token found');
             return false;
         }
-        const response = await fetch(`${API_HOST}/verify`, {
+        const response = await fetch(`${API_HOST}/auth/verify`, {
           headers: {
             'Authorization': `Bearer ${accessToken}`,
           },

@@ -39,11 +39,11 @@ class ChatEventStreaming(BaseModel):
 
 
 class ChatUserHistory(BaseModel):
-    """Model for chat user history."""
+    """Chat user history model for the chat history endpoint."""
 
     chat_id: str
-    chat_title: Optional[str]
-    chat_model: str
+    chat_title: Optional[str] = None
+    chat_model: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 

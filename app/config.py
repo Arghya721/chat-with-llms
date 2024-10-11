@@ -1,7 +1,8 @@
 """Configuration module."""
 from pydantic_settings import BaseSettings
+from dotenv import load_dotenv
 
-
+load_dotenv()
 class Settings(BaseSettings):
     """Settings class."""
 
@@ -17,6 +18,7 @@ class Settings(BaseSettings):
 
     class Config:
         """Config class."""
+
         env_file = ".env"
         extra = "ignore"
 
