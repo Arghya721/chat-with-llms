@@ -4,6 +4,7 @@ Chat controller module for handling chat-related operations.
 This module contains functions for processing chat requests, generating responses,
 and managing chat-related data.
 """
+
 import logging
 from fastapi import HTTPException, status, Depends
 from models.chat import ChatRequest, ChatEventStreaming, ChatResponse
@@ -35,7 +36,7 @@ class ChatController:
         self.chat_service = chat_service()
         self.database_service = database_service()
 
-    async def chat_event_streaming(self, request: ChatRequest, token_info: dict):
+    def chat_event_streaming(self, request: ChatRequest, token_info: dict):
         """
         Process a chat request and return a streaming response.
 
@@ -53,9 +54,11 @@ class ChatController:
             chat_model = request.chat_model
             chat = self.chat_service.get_chat_model(chat_model, request.temperature)
 
-            generations_left = await self.database_service.get_generations(
+            generations_left = self.database_service.get_generations(
                 token_info["sub"]
             )
+
+            print(generations_left)
             if generations_left == 0:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
@@ -84,55 +87,49 @@ class ChatController:
                 chat_history=memory.buffer, user_input=request.user_input
             )
 
-            async def event_streaming():
-                nonlocal generated_ai_message
-                try:
-                    for token in conversation.stream(
-                        {
-                            "chat_history": memory.buffer,
-                            "user_input": request.user_input,
-                        }
-                    ):
-                        generated_ai_message += token
-                        response = ChatEventStreaming(
-                            event="stream", data=token, is_final=False
-                        )
-                        yield f"data: {json.dumps(jsonable_encoder(response))}\n\n"
+            for token in conversation.stream(
+                {
+                    "chat_history": memory.buffer,
+                    "user_input": request.user_input,
+                }
+            ):
+                generated_ai_message += token
+                response = ChatEventStreaming(
+                    event="stream", data=token, is_final=False
+                )
+                yield f"data: {json.dumps(jsonable_encoder(response))}\n\n"
 
-                    input_token_length, output_token_length, cost = (
-                        self.chat_service.calculate_cost(
-                            total_input, generated_ai_message, chat_model
-                        )
-                    )
+            input_token_length, output_token_length, cost = (
+                self.chat_service.calculate_cost(
+                    total_input, generated_ai_message, chat_model
+                )
+            )
 
-                    stats = {
-                        "input_token_length": input_token_length,
-                        "output_token_length": output_token_length,
-                        "cost": cost,
-                    }
-                    chat_id = await self.database_service.add_message_to_db(
-                        request,
-                        token_info["sub"],
-                        request.user_input,
-                        generated_ai_message,
-                        stats,
-                    )
+            stats = {
+                "input_token_length": input_token_length,
+                "output_token_length": output_token_length,
+                "cost": cost,
+            }
+            chat_id = self.database_service.add_message_to_db(
+                request,
+                token_info["sub"],
+                request.user_input,
+                generated_ai_message,
+                stats,
+            )
 
-                    await self.database_service.update_generations_left(
-                        token_info["sub"], generations_left
-                    )
+            self.database_service.update_generations_left(
+                token_info["sub"], generations_left
+            )
 
-                    response = ChatEventStreaming(
-                        event="stream", data="", is_final=True, chat_id=chat_id
-                    )
-                    yield f"data: {json.dumps(jsonable_encoder(response))}\n\n"
-                except Exception as e:
-                    # Log the exception and handle it appropriately
-                    print(f"Error in event streaming: {str(e)}")
+            response = ChatEventStreaming(
+                event="stream", data="", is_final=True, chat_id=chat_id
+            )
+            yield f"data: {json.dumps(jsonable_encoder(response))}\n\n"
 
-            return event_streaming()
         except Exception as e:
-            logging.error(f"Error processing chat request: {str(e)}")
+            # Log the exception and handle it appropriately
+            print(f"Error in event streaming: {str(e)}")
             raise HTTPException(
                 status_code=500, detail=f"Internal server error: {str(e)}"
             )
@@ -154,7 +151,7 @@ class ChatController:
         try:
             chat = self.chat_service.get_chat_model("gpt-4o-mini", request.temperature)
 
-            generations_left = await self.database_service.get_generations(
+            generations_left = self.database_service.get_generations(
                 token_info["sub"]
             )
             if generations_left == 0:
@@ -184,7 +181,7 @@ class ChatController:
 
             response["text"] = response["text"].replace('"', "").replace("/", "")
 
-            await self.database_service.update_chat_title(
+            self.database_service.update_chat_title(
                 request.chat_id, response["text"]
             )
 

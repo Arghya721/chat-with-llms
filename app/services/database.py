@@ -39,7 +39,10 @@ async def add_message_to_db(
         if chat_ref.get().to_dict()["google_user_id"] != google_user_id:
             raise ValueError("Forbidden")
         chat_ref.update(
-            {"updated_at": google_firestore.SERVER_TIMESTAMP, "model": request.chat_model}
+            {
+                "updated_at": google_firestore.SERVER_TIMESTAMP,
+                "model": request.chat_model,
+            }
         )
     else:
         chat_ref.set(
@@ -105,7 +108,9 @@ async def update_chat_title(chat_id: str, new_chat_title: str):
     )
 
 
-async def get_user_chat_history(google_user_id: str, page: int, limit: int) -> List[ChatUserHistory]:
+async def get_user_chat_history(
+    google_user_id: str, page: int, limit: int
+) -> List[ChatUserHistory]:
     """
     Fetches paginated chat history for a given Google user ID.
 
@@ -122,7 +127,9 @@ async def get_user_chat_history(google_user_id: str, page: int, limit: int) -> L
     # Firestore query to fetch the user's chat history
     chat_ref = (
         db.collection("chats")
-        .where(filter=FieldFilter("google_user_id", "==", google_user_id))  # Use FieldFilter
+        .where(
+            filter=FieldFilter("google_user_id", "==", google_user_id)
+        )  # Use FieldFilter
         .order_by("updated_at", direction=google_firestore.Query.DESCENDING)
         .offset(start_index)
         .limit(limit)
@@ -130,7 +137,6 @@ async def get_user_chat_history(google_user_id: str, page: int, limit: int) -> L
     )
 
     return [ChatUserHistory(**chat.to_dict()) for chat in chat_ref]
-
 
 
 async def get_chat_by_id(chat_id: str, google_user_id: str) -> List[ChatByIdHistory]:

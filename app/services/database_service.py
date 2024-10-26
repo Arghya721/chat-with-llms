@@ -7,6 +7,7 @@ abstracting away the specifics of the database implementation.
 
 from google.cloud import firestore
 from models.user import User
+from google.cloud import firestore as google_firestore
 from models.chat import ChatRequest, ChatUserHistory, ChatByIdHistory
 from config import settings
 import firebase_admin
@@ -32,10 +33,9 @@ class DatabaseService:
         else:
             print("Firebase app is already initialized")
 
-
         self.db = firestore.client()
 
-    async def add_user_to_db(self, user: User):
+    def add_user_to_db(self, user: User):
         """
         Add a new user to the database or update an existing user.
 
@@ -45,10 +45,10 @@ class DatabaseService:
         user_ref = self.db.collection("users").document(user.google_user_id)
         user_data = user.dict()
         if not user_ref.get().exists:
-            user_data["created_at"] = firestore.SERVER_TIMESTAMP
+            user_data["created_at"] = google_firestore.SERVER_TIMESTAMP
             user_ref.set(user_data)
 
-    async def add_message_to_db(
+    def add_message_to_db(
         self,
         request: ChatRequest,
         google_user_id: str,
@@ -79,15 +79,15 @@ class DatabaseService:
             if chat_ref.get().to_dict()["google_user_id"] != google_user_id:
                 raise ValueError("Forbidden")
             chat_ref.update(
-                {"updated_at": firestore.SERVER_TIMESTAMP, "model": request.chat_model}
+                {"updated_at": google_firestore.SERVER_TIMESTAMP, "model": request.chat_model}
             )
         else:
             chat_ref.set(
                 {
                     "chat_id": chat_id,
                     "google_user_id": google_user_id,
-                    "created_at": firestore.SERVER_TIMESTAMP,
-                    "updated_at": firestore.SERVER_TIMESTAMP,
+                    "created_at": google_firestore.SERVER_TIMESTAMP,
+                    "updated_at": google_firestore.SERVER_TIMESTAMP,
                     "model": request.chat_model,
                 }
             )
@@ -97,8 +97,8 @@ class DatabaseService:
                 "ai_message": ai_message,
                 "user_message": user_message,
                 "chat_id": chat_id,
-                "created_at": firestore.SERVER_TIMESTAMP,
-                "updated_at": firestore.SERVER_TIMESTAMP,
+                "created_at": google_firestore.SERVER_TIMESTAMP,
+                "updated_at": google_firestore.SERVER_TIMESTAMP,
                 "regenerate_message": request.regenerate_message,
                 "model": request.chat_model,
                 "stats": stats,
@@ -107,7 +107,7 @@ class DatabaseService:
 
         return chat_id
 
-    async def get_generations(self, google_user_id: str):
+    def get_generations(self, google_user_id: str):
         """
         Get the number of remaining generations for a user.
 
@@ -128,13 +128,13 @@ class DatabaseService:
                 {
                     "google_user_id": google_user_id,
                     "remaining_generations": 20,
-                    "created_at": firestore.SERVER_TIMESTAMP,
-                    "updated_at": firestore.SERVER_TIMESTAMP,
+                    "created_at": google_firestore.SERVER_TIMESTAMP,
+                    "updated_at": google_firestore.SERVER_TIMESTAMP,
                 }
             )
             return 20
 
-    async def update_generations_left(self, google_user_id: str, generations_left: int):
+    def update_generations_left(self, google_user_id: str, generations_left: int):
         """
         Update the number of remaining generations for a user.
 
@@ -148,8 +148,19 @@ class DatabaseService:
         user_generations_ref.update(
             {
                 "remaining_generations": generations_left - 1,
-                "updated_at": firestore.SERVER_TIMESTAMP,
+                "updated_at": google_firestore.SERVER_TIMESTAMP,
             }
         )
 
-    # ... (implement other methods with similar docstrings and comments)
+    def update_chat_title(self, chat_id: str, new_chat_title: str):
+        """
+        Background task to update the chat title in the database.
+        """
+        chat_doc_ref = self.db.collection("chats").document(chat_id)
+        chat_doc_ref.update(
+            {
+                "chat_title": new_chat_title,
+                "updated_at": google_firestore.SERVER_TIMESTAMP,
+            }
+        )
+        

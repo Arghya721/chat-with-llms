@@ -1,6 +1,8 @@
 """This module contains the routes for chat related operations"""
+
 import logging
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from controllers.chat_controller import ChatController
 from controllers.auth_controller import verify_token
 from models.chat import ChatRequest, ChatUserHistory, ChatByIdHistory
@@ -11,6 +13,7 @@ from pydantic import ValidationError
 
 router = APIRouter()
 
+
 @router.post("/chat_event_streaming")
 async def chat_event_streaming_route(
     request: ChatRequest, token_info: dict = Depends(verify_token)
@@ -19,13 +22,16 @@ async def chat_event_streaming_route(
     try:
         chat_controller = ChatController(ChatService, DatabaseService)
 
-        return await chat_controller.chat_event_streaming(request, token_info)
+        return StreamingResponse(
+            chat_controller.chat_event_streaming(request, token_info),
+            media_type="text/event-stream",
+        )
     except ValidationError as ve:
         # Handle validation errors specifically for better user feedback
         logging.error("Validation error: %s", ve)
         raise HTTPException(status_code=400, detail="Invalid request data") from ve
     except HTTPException as he:
-        
+
         logging.error("Error processing chat request: %s", he)
         raise HTTPException(status_code=he.status_code, detail=he.detail) from he
     except Exception as e:
@@ -39,7 +45,9 @@ async def chat_title_route(
     request: ChatRequest, token_info: dict = Depends(verify_token)
 ):
     """Route for generating chat title."""
-    return await ChatController.generate_chat_title(request, token_info)
+    chat_controller = ChatController(ChatService, DatabaseService)
+
+    return await chat_controller.generate_chat_title(request, token_info)
 
 
 @router.get("/chat_history", response_model=list[ChatUserHistory])
