@@ -10,6 +10,7 @@ extension-pkg-whitelist=
 [MESSAGES CONTROL]
 confidence=
 disable=C0111
+disable=import-error
 
 [REPORTS]
 output-format=text

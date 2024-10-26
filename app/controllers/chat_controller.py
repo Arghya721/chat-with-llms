@@ -4,13 +4,11 @@ Chat controller module for handling chat-related operations.
 This module contains functions for processing chat requests, generating responses,
 and managing chat-related data.
 """
-
-import logging
-from fastapi import HTTPException, status, Depends
+from threading import Thread
+from fastapi import HTTPException, status
 from models.chat import ChatRequest, ChatEventStreaming, ChatResponse
 from services.chat_service import ChatService
 from services.database_service import DatabaseService
-from controllers.auth_controller import verify_token
 from langchain.prompts import (
     ChatPromptTemplate,
     MessagesPlaceholder,
@@ -58,7 +56,6 @@ class ChatController:
                 token_info["sub"]
             )
 
-            print(generations_left)
             if generations_left == 0:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
@@ -118,9 +115,18 @@ class ChatController:
                 stats,
             )
 
-            self.database_service.update_generations_left(
-                token_info["sub"], generations_left
-            )
+            # Run the generations update in a separate thread
+            def update_generations():
+                try:
+                    self.database_service.update_generations_left(
+                        token_info["sub"], generations_left
+                    )
+                except Exception as e:
+                    # Log the error but don't raise it since we're in a background thread
+                    print(f"Error updating generations in background: {str(e)}")
+
+            update_thread = Thread(target=update_generations)
+            update_thread.start()
 
             response = ChatEventStreaming(
                 event="stream", data="", is_final=True, chat_id=chat_id

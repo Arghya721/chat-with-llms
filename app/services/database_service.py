@@ -4,10 +4,11 @@ Database service module for handling database operations.
 This module provides an interface for interacting with the database,
 abstracting away the specifics of the database implementation.
 """
-
+import logging
 from google.cloud import firestore
 from models.user import User
 from google.cloud import firestore as google_firestore
+from google.cloud.firestore_v1.base_query import FieldFilter
 from models.chat import ChatRequest, ChatUserHistory, ChatByIdHistory
 from config import settings
 import firebase_admin
@@ -72,38 +73,81 @@ class DatabaseService:
         Raises:
             ValueError: If access to the chat is forbidden.
         """
-        chat_id = request.chat_id or str(uuid.uuid4())
-        chat_ref = self.db.collection("chats").document(chat_id)
 
-        if chat_ref.get().exists:
-            if chat_ref.get().to_dict()["google_user_id"] != google_user_id:
-                raise ValueError("Forbidden")
-            chat_ref.update(
-                {"updated_at": google_firestore.SERVER_TIMESTAMP, "model": request.chat_model}
-            )
-        else:
-            chat_ref.set(
-                {
-                    "chat_id": chat_id,
-                    "google_user_id": google_user_id,
-                    "created_at": google_firestore.SERVER_TIMESTAMP,
-                    "updated_at": google_firestore.SERVER_TIMESTAMP,
-                    "model": request.chat_model,
-                }
-            )
+        # Check if chat_id key exists in the request
+        if not hasattr(request, "chat_id"):
+            logging.error("Request object does not have a chat_id attribute")
+            return None
 
-        self.db.collection("chat_history").add(
-            {
-                "ai_message": ai_message,
-                "user_message": user_message,
-                "chat_id": chat_id,
-                "created_at": google_firestore.SERVER_TIMESTAMP,
-                "updated_at": google_firestore.SERVER_TIMESTAMP,
-                "regenerate_message": request.regenerate_message,
-                "model": request.chat_model,
-                "stats": stats,
-            }
+        chat_id = request.chat_id
+
+        # Check if the chat_id exists in the database in the chat_id column
+        chat_ref = (
+            self.db.collection("chats")
+            .where(filter=FieldFilter("chat_id", "==", chat_id))
+            .limit(1)
+            .stream()
         )
+        chat_data = next(chat_ref, None)
+
+        if chat_data:
+            # Check if the google_user_id matches the google_user_id in the chat
+            chat_data = chat_data.to_dict()
+            if chat_data["google_user_id"] == google_user_id:
+                try:
+                    # Update the chat with the new message
+                    chat_doc_ref = self.db.collection("chats").document(chat_id)
+                    chat_doc_ref.update(
+                        {
+                            "updated_at": google_firestore.SERVER_TIMESTAMP,
+                            "model": request.chat_model,
+                        }
+                    )
+                    self.db.collection("chat_history").add(
+                        {
+                            "ai_message": ai_message,
+                            "user_message": user_message,
+                            "chat_id": chat_id,
+                            "created_at": google_firestore.SERVER_TIMESTAMP,
+                            "updated_at": google_firestore.SERVER_TIMESTAMP,
+                            "regenerate_message": request.regenerate_message,
+                            "model": request.chat_model,
+                            "stats": stats,
+                        }
+                    )
+                except Exception as e:
+                    logging.error(f"Error updating chat: {e}")
+            else:
+                raise ValueError("Access to chat is forbidden")
+        else:
+            try:
+                # Create a new chat id and add the chat to the database
+                chat_id = str(uuid.uuid4())
+                new_chat_ref = self.db.collection("chats").document(chat_id)
+                new_chat_ref.set(
+                    {
+                        "chat_id": chat_id,
+                        "google_user_id": google_user_id,
+                        "created_at": google_firestore.SERVER_TIMESTAMP,
+                        "updated_at": google_firestore.SERVER_TIMESTAMP,
+                        "model": request.chat_model,
+                    }
+                )
+                self.db.collection("chat_history").add(
+                    {
+                        "ai_message": ai_message,
+                        "user_message": user_message,
+                        "chat_id": chat_id,
+                        "created_at": google_firestore.SERVER_TIMESTAMP,
+                        "updated_at": google_firestore.SERVER_TIMESTAMP,
+                        "regenerate_message": request.regenerate_message,
+                        "model": request.chat_model,
+                        "stats": stats,
+                    }
+                )
+            except Exception as e:
+                logging.error(f"Error creating new chat: {e}")
+                return None
 
         return chat_id
 
