@@ -91,7 +91,7 @@ export const AiCard = ({ message, retryComponent }) => {
         </>
       )}
     </button>
-  ), [copied]); // Memoize the copy button based on the copied state
+  ), [copied, message]); // Recompute when copy status or message changes
 
   return (
     <Card className={`max-w-max dark:bg-gray-700 dark:text-gray-200 bg-white text-gray-800`}>
