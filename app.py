@@ -6,14 +6,12 @@ import json
 import uuid
 from google.cloud import firestore as google_firestore
 from fastapi import FastAPI, HTTPException, Depends, status, BackgroundTasks
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import StreamingResponse, JSONResponse
 from jose import jwt
 from pydantic import BaseModel, ValidationError
 from typing import Optional
-import requests
 from langchain_openai import ChatOpenAI
 import dotenv
 from langchain.prompts import (
@@ -60,19 +58,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from mvc.controllers.auth_controller import router as auth_router
+app.include_router(auth_router)
+
 # Set up logging with the configured log level from environment variables or default to ERROR.
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "ERROR"))
 
-def get_environment_variable(key):
-    """Get the environment variable or return None if not found"""
-    # Try fetching from environment first
-    value = os.getenv(key)
-    if value is not None:
-        return value
-    
-    # Fallback to dotenv
-    value = dotenv.get_key(dotenv.find_dotenv(), key)
-    return value
+from mvc.services.utils import get_environment_variable
 
 RAZORPAY_KEY_ID = get_environment_variable("RAZOR_PAY_KEY_ID")
 RAZORPAY_KEY_SECRET = get_environment_variable("RAZOR_PAY_KEY_SECRET")
@@ -93,8 +85,6 @@ subscription = Subscription(client)
 customer = Customer(client)
 
 # This will just define that the Authorization header is required
-auth_scheme = HTTPBearer()
-
 anthropic = Anthropic()
 
 class ChatHistory(BaseModel):
@@ -542,44 +532,7 @@ async def custom_http_exception_handler(request, exc: HTTPException):
         content={"status": exc.status_code if exc.status_code else status.HTTP_403_FORBIDDEN, "details": exc.detail},
     )
 
-async def verify_google_token(background_tasks: BackgroundTasks, credentials: HTTPAuthorizationCredentials = Depends(auth_scheme)):
-    """Verify the Google ID token and return the user info."""
-    if credentials:
-        token = credentials.credentials
-        try:
-            request = requests.get("https://www.googleapis.com/oauth2/v3/userinfo", headers={"Authorization": f"Bearer {token}"}, timeout=10)
-
-            # Check if the request was successful
-            request.raise_for_status()
-
-            credentials = request.json()
-            
-            # Check if the user is in the database using the sub field, in the collection users the sub is set to google_user_id field
-            user_ref = db.collection('users').document(credentials['sub'])
-            user_data = {
-                'email': credentials['email'],
-                'username': credentials['name'],
-                'profile_picture': credentials['picture'],
-                'google_user_id': credentials['sub'],
-            }
-
-            # Add or update the user in the database as a background task
-            background_tasks.add_task(add_user_to_db, user_ref, user_data)
-
-            return credentials
-        except ValueError as exc:
-            # Invalid token
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid or expired Google ID token",
-                headers={"WWW-Authenticate": "Bearer"},
-            ) from exc
-    else:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authorization header missing",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+from mvc.services.auth_service import verify_google_token, verify_token
 
 
 
@@ -610,36 +563,6 @@ def update_generations_left(token_info: dict = Depends(verify_google_token), gen
     })
 
 
-@app.get("/auth/google", response_model=dict, tags=["Authentication Endpoints"])
-async def google_auth(idinfo: dict = Depends(verify_google_token)):
-    """Google authentication endpoint to verify the Google ID token."""
-    # create a new JWT token using sub and the secret key with expiry time of 30 days
-    token = jwt.encode({"sub": idinfo["sub"], "exp": datetime.datetime.utcnow() + datetime.timedelta(days=30)}, SECRET_KEY, algorithm="HS256")
-    return {"accessToken": token, "user": idinfo, "token_type": "Bearer"}
-
-# Example usage within your verify_token dependency
-async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(HTTPBearer())):
-    """Verify the JWT token and return the user info."""
-    if credentials:
-        token = credentials.credentials
-        try:
-            payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
-            return payload
-        except jwt.JWTError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid or expired token",
-            ) from exc
-    else:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authorization header missing",
-        )
-    
-@app.get("/verify", tags=["Authentication Endpoints"])
-async def verify_token_info(token_info: dict = Depends(verify_token)):
-    """Verify the JWT token and return the user info."""
-    return {"token_info": token_info}
 
 
 @app.post("/v1/chat_event_streaming", tags=["AI Endpoints"])
